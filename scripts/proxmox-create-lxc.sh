@@ -127,7 +127,10 @@ set -e
 apt update && apt upgrade -y
 
 # Install dependencies
-apt install -y python3 python3-pip python3-venv git wget curl xdg-utils
+apt install -y python3 python3-pip python3-venv git wget curl xdg-utils \
+    libopengl0 libegl1 libxcb-cursor0 libxkbcommon0 libxcb-icccm4 \
+    libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
+    libxcb-shape0 libxcb-xinerama0 libxcb-xkb1
 
 # Install Calibre
 wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sh /dev/stdin install_dir=/opt
