@@ -687,11 +687,17 @@ def index():
 @app.route('/api/scan')
 def scan():
     global current_ebooks
+    import os
 
     path = request.args.get('path', 'downloads')
 
     if path == 'downloads':
-        folder = Path.home() / 'Downloads'
+        # Use EBOOK_SOURCE_DIR env var if set, otherwise ~/Downloads
+        ebook_dir = os.environ.get('EBOOK_SOURCE_DIR')
+        if ebook_dir:
+            folder = Path(ebook_dir)
+        else:
+            folder = Path.home() / 'Downloads'
     else:
         folder = Path(path).expanduser()
 
