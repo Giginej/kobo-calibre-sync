@@ -1,8 +1,10 @@
 """Flask web application for Kobo Calibre Sync"""
 
-import json
+import os
+import secrets
+from functools import wraps
 from pathlib import Path
-from flask import Flask, render_template_string, jsonify, request
+from flask import Flask, render_template_string, jsonify, request, Response
 
 from src.core.scanner import EbookScanner
 from src.core.calibre import CalibreManager
@@ -16,6 +18,55 @@ metadata_extractor = MetadataExtractor()
 
 # Store scanned ebooks in memory
 current_ebooks = []
+
+AUTH_USERNAME = os.environ.get("KOBO_SYNC_USER", "kobo")
+AUTH_PASSWORD = os.environ.get("KOBO_SYNC_PASSWORD")
+_GENERATED_PASSWORD = None
+if not AUTH_PASSWORD:
+    _GENERATED_PASSWORD = secrets.token_urlsafe(12)
+    AUTH_PASSWORD = _GENERATED_PASSWORD
+
+# Directories the app is allowed to scan into (and serve downloads from).
+# Anything outside these roots is rejected to prevent path traversal / arbitrary
+# file read via /api/scan and /download.
+ALLOWED_SCAN_ROOTS = [Path.home().resolve()]
+_extra_root = os.environ.get("EBOOK_SOURCE_DIR")
+if _extra_root:
+    ALLOWED_SCAN_ROOTS.append(Path(_extra_root).expanduser().resolve())
+
+
+def _is_path_allowed(path: Path) -> bool:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    return any(
+        resolved == root or root in resolved.parents for root in ALLOWED_SCAN_ROOTS
+    )
+
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        valid = (
+            auth is not None
+            and secrets.compare_digest(auth.username or "", AUTH_USERNAME)
+            and secrets.compare_digest(auth.password or "", AUTH_PASSWORD)
+        )
+        if not valid:
+            return Response(
+                "Autenticazione richiesta", 401,
+                {"WWW-Authenticate": 'Basic realm="Kobo Calibre Sync"'},
+            )
+        return f(*args, **kwargs)
+
+    return decorated
+
+
+@app.before_request
+def _enforce_auth():
+    return requires_auth(lambda: None)()
 
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
@@ -433,7 +484,7 @@ HTML_TEMPLATE = '''
                 </ol>
 
                 <div class="note">
-                    <strong>💡 Nota:</strong> Se non vedi "Beta Features", vai in
+                    <strong>[NOTA]:</strong> Se non vedi "Beta Features", vai in
                     <strong>Impostazioni → Informazioni sul dispositivo</strong>
                     e tocca più volte sulla versione per attivare le funzioni beta.
                 </div>
@@ -687,7 +738,6 @@ def index():
 @app.route('/api/scan')
 def scan():
     global current_ebooks
-    import os
 
     path = request.args.get('path', 'downloads')
 
@@ -700,6 +750,9 @@ def scan():
             folder = Path.home() / 'Downloads'
     else:
         folder = Path(path).expanduser()
+
+    if not _is_path_allowed(folder):
+        return jsonify({'error': 'Percorso non consentito'}), 400
 
     current_ebooks = scanner.scan(folder)
 
@@ -820,7 +873,7 @@ def kobo_page():
     </head>
     <body>
         <h1>■ KOBO CALIBRE SYNC</h1>
-        <a href="/kobo" class="refresh">🔄 AGGIORNA</a>
+        <a href="/kobo" class="refresh">[AGGIORNA]</a>
         <p><b>{len(current_ebooks)}</b> libri disponibili</p>
         {books_html}
     </body>
@@ -873,6 +926,13 @@ def run():
     print("="*50)
     print(f"  Mac:  http://127.0.0.1:{port}")
     print(f"  Kobo: http://{local_ip}:{port}")
+    print(f"  Utente: {AUTH_USERNAME}")
+    if _GENERATED_PASSWORD:
+        print(f"  Password (generata, cambia a ogni riavvio): {_GENERATED_PASSWORD}")
+        print("  Imposta KOBO_SYNC_PASSWORD per una password fissa.")
+    else:
+        print("  Password: quella impostata in KOBO_SYNC_PASSWORD")
+    print(f"  Dal browser del Kobo, apri: http://{AUTH_USERNAME}:<password>@{local_ip}:{port}/kobo")
     print("="*50 + "\n")
     app.run(debug=False, port=port, host='0.0.0.0')
 

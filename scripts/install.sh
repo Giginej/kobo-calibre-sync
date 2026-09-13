@@ -72,6 +72,7 @@ chown -R "$APP_USER:$APP_USER" /home/$APP_USER/ebooks
 chown -R "$APP_USER:$APP_USER" /home/$APP_USER/calibre-library
 
 echo -e "${YELLOW}[7/7] Configurazione servizio systemd...${NC}"
+SYNC_PASSWORD=$(openssl rand -base64 18)
 cat > /etc/systemd/system/kobo-sync.service << EOF
 [Unit]
 Description=Kobo Calibre Sync Web App
@@ -84,6 +85,7 @@ WorkingDirectory=$APP_DIR
 Environment="PATH=$APP_DIR/.venv/bin"
 Environment="EBOOK_SOURCE_DIR=/home/$APP_USER/ebooks"
 Environment="CALIBRE_LIBRARY=/home/$APP_USER/calibre-library"
+Environment="KOBO_SYNC_PASSWORD=$SYNC_PASSWORD"
 ExecStart=$APP_DIR/.venv/bin/python -m src.main
 Restart=always
 RestartSec=5
@@ -107,6 +109,11 @@ echo ""
 echo "  Accesso Web App:"
 echo "    - Mac/PC: http://$IP_ADDR:5050"
 echo "    - Kobo:   http://$IP_ADDR:5050/kobo"
+echo ""
+echo "  Credenziali (Basic Auth):"
+echo "    - Utente:   kobo"
+echo "    - Password: $SYNC_PASSWORD"
+echo "  (salvale: sono anche in /etc/systemd/system/kobo-sync.service)"
 echo ""
 echo "  Directory ebook: /home/$APP_USER/ebooks"
 echo "  Libreria Calibre: /home/$APP_USER/calibre-library"

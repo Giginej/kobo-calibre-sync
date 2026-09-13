@@ -134,10 +134,19 @@ mount -a
 
 ## 4. Configurazione Servizio Systemd
 
-Crea il file di servizio:
+Genera una password per l'accesso Basic Auth alla web app (obbligatoria: senza
+`KOBO_SYNC_PASSWORD` l'app genera una password casuale a ogni riavvio, stampata
+solo nei log con `journalctl -u kobo-sync`):
 
 ```bash
-cat > /etc/systemd/system/kobo-sync.service << 'EOF'
+SYNC_PASSWORD=$(openssl rand -base64 18)
+echo "Password Kobo Sync: $SYNC_PASSWORD"  # salvala
+```
+
+Crea il file di servizio (nota: `EOF` non tra apici, per espandere `$SYNC_PASSWORD`):
+
+```bash
+cat > /etc/systemd/system/kobo-sync.service << EOF
 [Unit]
 Description=Kobo Calibre Sync Web App
 After=network.target
@@ -147,6 +156,7 @@ Type=simple
 User=kobo
 WorkingDirectory=/opt/kobo-sync
 Environment="PATH=/opt/kobo-sync/.venv/bin"
+Environment="KOBO_SYNC_PASSWORD=$SYNC_PASSWORD"
 ExecStart=/opt/kobo-sync/.venv/bin/python -m src.main
 Restart=always
 RestartSec=5

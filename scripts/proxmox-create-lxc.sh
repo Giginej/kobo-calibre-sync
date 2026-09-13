@@ -180,6 +180,7 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
+SYNC_PASSWORD=$(openssl rand -base64 18)
 cat > /etc/systemd/system/kobo-sync.service << EOF
 [Unit]
 Description=Kobo Calibre Sync
@@ -192,6 +193,7 @@ WorkingDirectory=/opt/kobo-sync
 Environment="PATH=/opt/kobo-sync/.venv/bin"
 Environment="EBOOK_SOURCE_DIR=/mnt/ebooks"
 Environment="CALIBRE_LIBRARY=/home/kobo/calibre-library"
+Environment="KOBO_SYNC_PASSWORD=$SYNC_PASSWORD"
 ExecStart=/opt/kobo-sync/.venv/bin/python -m src.main
 Restart=always
 RestartSec=5
@@ -211,6 +213,7 @@ echo "Installazione completata!"
 # Get container IP
 sleep 3
 CT_IP=$(pct exec $CTID -- hostname -I | awk '{print $1}')
+SYNC_PASSWORD=$(pct exec $CTID -- grep -oP '(?<=KOBO_SYNC_PASSWORD=)[^"]+' /etc/systemd/system/kobo-sync.service)
 
 echo ""
 echo -e "${GREEN}=================================================="
@@ -226,6 +229,7 @@ echo "      (user: admin, pass: admin123)"
 echo ""
 echo "    Kobo-Sync:   http://$CT_IP:5050"
 echo "    Kobo:        http://$CT_IP:5050/kobo"
+echo "      (user: kobo, pass: $SYNC_PASSWORD)"
 echo ""
 echo "  CARTELLE:"
 echo "    Ebook (host):      $EBOOK_PATH_HOST"

@@ -111,6 +111,7 @@ WantedBy=multi-user.target
 EOF
 
 # Kobo-Sync service
+SYNC_PASSWORD=$(openssl rand -base64 18)
 cat > /etc/systemd/system/kobo-sync.service << EOF
 [Unit]
 Description=Kobo Calibre Sync Web App
@@ -123,6 +124,7 @@ WorkingDirectory=$APP_DIR
 Environment="PATH=$APP_DIR/.venv/bin"
 Environment="EBOOK_SOURCE_DIR=$EBOOK_DIR"
 Environment="CALIBRE_LIBRARY=$CALIBRE_LIBRARY"
+Environment="KOBO_SYNC_PASSWORD=$SYNC_PASSWORD"
 ExecStart=$APP_DIR/.venv/bin/python -m src.main
 Restart=always
 RestartSec=5
@@ -154,6 +156,9 @@ echo ""
 echo "  Kobo-Sync (invio ebook a Kobo):"
 echo "    Mac/PC: http://$IP_ADDR:5050"
 echo "    Kobo:   http://$IP_ADDR:5050/kobo"
+echo "    Utente:   kobo"
+echo "    Password: $SYNC_PASSWORD"
+echo "    (salvale: sono anche in /etc/systemd/system/kobo-sync.service)"
 echo ""
 echo "  CARTELLE:"
 echo "    Ebook da importare: $EBOOK_DIR"
