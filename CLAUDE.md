@@ -49,10 +49,15 @@ There used to be two desktop GUIs (PySide6 and Tkinter) before the app pivoted t
 - Wireless sync requires Kobo to be connected via Calibre's wireless device feature (Calibre: Connect/share > Start wireless device connection), or the app's own `/kobo` download page.
 - Supported formats: `.epub`, `.mobi`, `.azw`, `.azw3`, `.fb2`, `.cbz`, `.cbr` (PDF escluso). `scanner.py` only scans one folder level (non-recursive).
 - **Authentication**: every route requires HTTP Basic Auth (`src/web/app.py`). Credentials come from `KOBO_SYNC_USER` (default `kobo`) and `KOBO_SYNC_PASSWORD`. If `KOBO_SYNC_PASSWORD` is not set, a random password is generated at startup and printed to stdout/journalctl — it changes on every restart, so set it explicitly for any non-ephemeral deployment.
+- **Kobo IP allowlist**: the Kobo browser handles Basic Auth poorly, so `/kobo` and `/download/<index>` skip auth when the client IP (`request.remote_addr`) is listed in `KOBO_DEVICE_IPS` (comma-separated). All other routes still require auth. This relies on Flask being exposed directly; behind a reverse proxy `remote_addr` would be the proxy's IP.
 - **Path validation**: `/api/scan` only allows scanning inside the user's home directory or `EBOOK_SOURCE_DIR` (if set) — anything else is rejected with a 400, to prevent path traversal / arbitrary file read via `/download/<index>`.
-- Environment variables: `EBOOK_SOURCE_DIR` (default scan folder, falls back to `~/Downloads`), `CALIBRE_LIBRARY` (used by deploy scripts; `CalibreManager.get_library_path()` currently only probes macOS-style paths, so this may need attention if the Linux/LXC deployment doesn't find the library automatically).
+- Environment variables: `EBOOK_SOURCE_DIR` (default scan folder, falls back to `~/Downloads`), `CALIBRE_LIBRARY` (when set, `get_library_path()` returns it and every `calibredb` call gets `--with-library`; otherwise macOS-style paths under the home are probed), `KOBO_DEVICE_IPS` (see above).
+
+## Deployment
+
+Live on Proxmox CT101 (`kobo-sync`, 192.168.10.107:5050), running as root from `/opt/kobo-sync` (plain copy, not a git checkout: deploy with `git archive HEAD` + `pct push`, keeping the existing `.venv`). Secrets and `KOBO_DEVICE_IPS` live in `/etc/kobo-sync.env` (mode 600), loaded by the systemd drop-in `/etc/systemd/system/kobo-sync.service.d/auth.conf`. Calibre-Web runs alongside on port 8083.
 
 ## Known gaps
 
-- No automated tests for `core/calibre.py` (the `calibredb` subprocess wrapper), `core/metadata.py`, or `web/app.py` — only `core/scanner.py` is covered by `tests/`.
+- Tests cover `core/scanner.py`, library resolution in `core/calibre.py`, and auth/allowlist in `web/app.py`. Still no tests for `core/metadata.py`, the rest of `calibre.py`, or the other web routes.
 - `calibre.py` swallows several subprocess failures silently (bare `except`/`pass`) — a failed import or sync may show no error.
