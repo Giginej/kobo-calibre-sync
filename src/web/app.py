@@ -64,8 +64,19 @@ def requires_auth(f):
     return decorated
 
 
+# The Kobo browser handles Basic Auth poorly: devices listed in KOBO_DEVICE_IPS
+# may open the Kobo pages without a password. Flask is exposed directly (no
+# proxy), so remote_addr is the real client IP.
+KOBO_DEVICE_IPS = {
+    ip.strip() for ip in os.environ.get("KOBO_DEVICE_IPS", "").split(",") if ip.strip()
+}
+KOBO_ENDPOINTS = {"kobo_page", "download_book"}
+
+
 @app.before_request
 def _enforce_auth():
+    if request.endpoint in KOBO_ENDPOINTS and request.remote_addr in KOBO_DEVICE_IPS:
+        return None
     return requires_auth(lambda: None)()
 
 HTML_TEMPLATE = '''
@@ -932,7 +943,10 @@ def run():
         print("  Imposta KOBO_SYNC_PASSWORD per una password fissa.")
     else:
         print("  Password: quella impostata in KOBO_SYNC_PASSWORD")
-    print(f"  Dal browser del Kobo, apri: http://{AUTH_USERNAME}:<password>@{local_ip}:{port}/kobo")
+    if KOBO_DEVICE_IPS:
+        print(f"  Dal browser del Kobo ({', '.join(sorted(KOBO_DEVICE_IPS))}), apri: http://{local_ip}:{port}/kobo")
+    else:
+        print(f"  Dal browser del Kobo, apri: http://{AUTH_USERNAME}:<password>@{local_ip}:{port}/kobo")
     print("="*50 + "\n")
     app.run(debug=False, port=port, host='0.0.0.0')
 
