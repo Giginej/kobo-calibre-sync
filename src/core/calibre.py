@@ -73,6 +73,10 @@ class CalibreManager:
         """Run a calibre command"""
         executable = tool or self.calibredb
         cmd = [executable, *args]
+        # Point calibredb at CALIBRE_LIBRARY instead of the user's default library
+        library = os.environ.get("CALIBRE_LIBRARY")
+        if tool is None and library:
+            cmd += ["--with-library", library]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0 and "already exist" not in result.stderr.lower():
             raise CalibreError(f"calibre error: {result.stderr}")
@@ -80,6 +84,11 @@ class CalibreManager:
 
     def get_library_path(self) -> Optional[Path]:
         """Get the path to the Calibre library"""
+        env_library = os.environ.get("CALIBRE_LIBRARY")
+        if env_library:
+            path = Path(env_library)
+            return path if path.exists() else None
+
         # Try common locations
         home = Path.home()
         common_paths = [
