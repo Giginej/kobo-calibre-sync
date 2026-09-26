@@ -57,7 +57,10 @@ There used to be two desktop GUIs (PySide6 and Tkinter) before the app pivoted t
 
 Live on Proxmox CT101 (`kobo-sync`, 192.168.10.107:5050), running as root from `/opt/kobo-sync` (plain copy, not a git checkout: deploy with `git archive HEAD` + `pct push`, keeping the existing `.venv`). Secrets and `KOBO_DEVICE_IPS` live in `/etc/kobo-sync.env` (mode 600), loaded by the systemd drop-in `/etc/systemd/system/kobo-sync.service.d/auth.conf`. Calibre-Web runs alongside on port 8083.
 
+**Kobo Sync (primary Calibre -> Kobo path)**: Calibre-Web's native Kobo sync is enabled (`config_kobo_sync=1`, `config_kobo_proxy=0`) and the Kobo's `api_endpoint` in `.kobo/Kobo/Kobo eReader.conf` points to `http://192.168.10.107:8083/kobo/<token>`. Only books on the "Kobo" shelf sync (`kobo_only_shelves_sync=1` for admin); removing a book from the shelf removes it from the Kobo on next sync. Calibre-Web settings live in `/home/kobo/.calibre-web/app.db`. Two gotchas already hit: Kobo sync needs `jsonschema` in Calibre-Web's venv (without it `/v1/library/sync` fails with `'NoneType' object has no attribute 'SyncToken'`), and with the store proxy ON the Kobo store rejects the forwarded token ("Invalid token version") so sync aborts; hence proxy OFF, which means Kobo store purchases don't sync while the endpoint points to Calibre-Web.
+
 ## Known gaps
 
-- Tests cover `core/scanner.py`, library resolution in `core/calibre.py`, and auth/allowlist in `web/app.py`. Still no tests for `core/metadata.py`, the rest of `calibre.py`, or the other web routes.
+- Tests cover `core/scanner.py`, `core/calibre.py` (`subprocess.run` mocked; USB detection and content server only through patched methods), and auth/allowlist in `web/app.py`. Still no tests for `core/metadata.py` or the other web routes.
+- `calibredb` calls have no timeout: a hung `calibredb` blocks the web request.
 - `calibre.py` swallows several subprocess failures silently (bare `except`/`pass`) — a failed import or sync may show no error.
